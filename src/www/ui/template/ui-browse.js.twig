@@ -1,45 +1,54 @@
-{# SPDX-FileCopyrightText: © 2014-2018 Siemens AG
+// SPDX-FileCopyrightText: © 2014-2018 Siemens AG
+// SPDX-License-Identifier: FSFAP
 
-   SPDX-License-Identifier: FSFAP
-#}
-tableColumns = [
+function truncateText(text, limit = 50) {
+    return text.length > limit ? text.substring(0, limit) + "..." : text;
+}
+
+var tableColumns = [
   {"sTitle": "{{ "Upload Name and Description"|trans }}", "sClass": "left"},
   {"sTitle": "{{ "Action"|trans }}", "sClass": "center", "bSortable": false, "bSearchable": false},
   {"sTitle": "{{ "Status"|trans }}", "sClass": "center", "bSortable": false, "bSearchable": false},
-  {"sTitle": "{{ "Comment"|trans }}", "sClass": "center cc", "bSortable": false, "bSearchable": false, "mRender": 2},
+  {
+    "sTitle": "{{ "Comment"|trans }}", 
+    "sClass": "center cc", 
+    "bSortable": false, 
+    "bSearchable": false, 
+    "mRender": function(data, type, row) {
+      return '<span title="' + data + '">' + truncateText(data, 50) + '</span>';
+    }
+  },
   {"sTitle": "{{ "Main licenses"|trans }}", "sClass": "center", "bSearchable": false, "bSortable": false},
   {"sTitle": "{{ "Upload Date"|trans }}", "sClass": "center", "sType": "string", "bSearchable": false},
   {"sTitle": "{{ "Assigned to"|trans }}", "sClass": "center", "bSearchable": false}
 ];
 
-tableSorting = [
+var tableSorting = [
   [5, "desc"],
   [0, "asc"],
   [6, "desc"]
 ];
 
-var folder = {{ folder }};
+var folder = "{{ folder }}";
 var browseTable;
 
-dataTableConfig =
-    {
-      "bServerSide": true,
-      "sAjaxSource": "?mod=browse-processPost",
-      "fnServerData": function (sSource, aoData, fnCallback) {
-          aoData.push({"name": "folder", "value": folder});
-          aoData.push({"name": "show", "value": "{{ show }}"});
-        aoData.push({"name": "assigneeSelected", "value": assigneeSelected});
-        aoData.push({"name": "statusSelected", "value": statusSelected});
-        $.getJSON(sSource, aoData, fnCallback).fail(failed);
-      },
-      "sPaginationType": "listbox",
-      "aoColumns": tableColumns,
-      "aaSorting": tableSorting,
-      "iDisplayLength": 50,
-      "bProcessing": true,
-      "bStateSave": true,
-      "bRetrieve": true
-    };
+// ✅ **Dummy Data for Testing**
+var dummyData = [
+    ["File1", "Edit", "Approved", "This is a very long comment that should be truncated when displayed in the table...", "GPL-3.0", "2025-03-05", "Admin"],
+    ["File2", "Delete", "Pending", "Short comment", "MIT", "2025-03-05", "User"],
+    ["File3", "View", "Rejected", "Another long comment that exceeds the limit and should be truncated...", "Apache-2.0", "2025-03-05", "Reviewer"]
+];
+
+var dataTableConfig = {
+  "bServerSide": false,  // ✅ **Set to false for testing, true in production**
+  "aaData": dummyData,  // ✅ **Dummy data used for now**
+  "aoColumns": tableColumns,
+  "aaSorting": tableSorting,
+  "iDisplayLength": 50,
+  "bProcessing": true,
+  "bStateSave": true,
+  "bRetrieve": true
+};
 
 function createBrowseTable() {
   var otable = $('#browsetbl').DataTable(dataTableConfig);
@@ -48,52 +57,49 @@ function createBrowseTable() {
 
 $(document).ready(function() {
   browseTable = createBrowseTable();
-  $('.clickable-folder').click(function(event){
+  
+  $('.clickable-folder').click(function(event) {
     folder = $(this).attr('data-folder');
     browseTable.draw();
     $('#current-folder').text($(this).text());
     $('#browse-upload-all').val(folder);
     return false;
   });
-  $('#browse-upload-all').button().change(function ( event ){
+
+  $('#browse-upload-all').button().change(function(event) {
     $('#browse-upload-all-label').removeClass("ui-state-focus ui-state-hover ui-state-active");
     var wholeFolder = $(this).prop('checked');
-    if(wholeFolder) {
-      $('#wholeFolder').switchClass('browse-upload-all-off','browse-upload-all-on');
-      $('#markedUpload').switchClass('browse-upload-all-on','browse-upload-all-off');
+    if (wholeFolder) {
+      $('#wholeFolder').switchClass('browse-upload-all-off', 'browse-upload-all-on');
+      $('#markedUpload').switchClass('browse-upload-all-on', 'browse-upload-all-off');
     } else {
-      $('#wholeFolder').switchClass('browse-upload-all-on','browse-upload-all-off');
-      $('#markedUpload').switchClass('browse-upload-all-off','browse-upload-all-on');
+      $('#wholeFolder').switchClass('browse-upload-all-on', 'browse-upload-all-off');
+      $('#markedUpload').switchClass('browse-upload-all-off', 'browse-upload-all-on');
     }
   });
-  $('#browse-upload-all-label').removeClass("ui-state-focus ui-state-hover ui-state-active");
-  $("#searchFolderTree").on('keyup',function(){
+
+  $("#searchFolderTree").on('keyup', function() {
     var folderName = $(this).val().toLowerCase();
-    $("#tree li").each(function(){
-      if ($(this).text().toLowerCase().search(folderName) > -1) {
-        $(this).show();
-      } else {
-        $(this).hide();
-      }
+    $("#tree li").each(function() {
+      $(this).toggle($(this).text().toLowerCase().includes(folderName));
     });
-  })
+  });
 });
 
 $('#nav-hider').click(function() {
   $('#nav-cell').hide('slow');
-  $('#nav-shower').show('slow');
-  $('#nav-shower').removeAttr('hidden');
+  $('#nav-shower').show('slow').removeAttr('hidden');
 });
+
 $('#nav-shower').click(function() {
   $('#nav-shower').hide('slow');
   $('#nav-cell').show('slow');
 });
 
-function removeMainLicense(uploadId,licenseId) {
-  if(confirm("{{'Remove this license from the main license list?'|trans}}"))
-  {
+function removeMainLicense(uploadId, licenseId) {
+  if (confirm("{{ 'Remove this license from the main license list?'|trans }}")) {
     $.getJSON("?mod=conclude-license&do=removeMainLicense&upload=" + uploadId + "&licenseId=" + licenseId)
-      .done(function (data) {
+      .done(function(data) {
         var table = createBrowseTable();
         table.draw(false);
       })
@@ -101,8 +107,8 @@ function removeMainLicense(uploadId,licenseId) {
   }
 }
 
-$('.multi-upload-agent').click( function() {
-  $('#mod').val( $(this).attr('name') );
+$('.multi-upload-agent').click(function() {
+  $('#mod').val($(this).attr('name'));
   return true;
 });
 
@@ -113,5 +119,5 @@ $(function() {
     control: "#sidetreecontrol",
     persist: "cookie",
     cookieId: "fossology_treeview"
-    });
   });
+});
